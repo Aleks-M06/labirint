@@ -318,7 +318,6 @@
   const winOverlay = document.getElementById("winOverlay");
   const winClose = document.getElementById("winClose");
 
-  // Dynamic duration: daljša pot => daljši čas (smooth)
   const REF_LEN = 650;
   const REF_DURATION_MS = 10000;
   const MIN_MS = 6000;
@@ -348,7 +347,6 @@
   winClose.addEventListener("click", hideWin);
   winOverlay.addEventListener("click", (e) => { if (e.target === winOverlay) hideWin(); });
 
-  // Robust image fallback (če je kdo premaknil slike iz mape "slike")
   function setImgWithFallback(imgEl, primary, fallback){
     imgEl.onerror = null;
     imgEl.src = primary;
@@ -363,7 +361,7 @@
   function makeGrid() {
     grid = new Array(cols * rows).fill(null).map(() => ({
       v: false,
-      w: [true,true,true,true], // top,right,bottom,left
+      w: [true,true,true,true],
     }));
   }
 
@@ -398,9 +396,8 @@
       stack.push([nx, ny]);
     }
 
-    // odprt vhod/izhod
-    grid[idx(0,0)].w[3] = false; // vhod levo
-    grid[idx(cols-1, rows-1)].w[1] = false; // izhod desno
+    grid[idx(0,0)].w[3] = false;
+    grid[idx(cols-1, rows-1)].w[1] = false;
   }
 
   function solveMaze() {
