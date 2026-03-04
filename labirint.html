@@ -1,0 +1,707 @@
+<!doctype html>
+<html lang="sl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Labirint</title>
+  <style>
+    :root{
+      --maze-w: min(92vw, 600px);
+      --maze-h: min(92vw, 600px);
+
+      --bg0: #070612;
+      --bg1: #120a2a;
+
+      --wall: #e6e1ff;
+      --path: #39ff88;
+
+      --panel: rgba(16, 10, 34, .78);
+      --panelBorder: rgba(214, 208, 255, .16);
+
+      --text: #efeaff;
+    }
+
+    *{ box-sizing: border-box; }
+    body{
+      margin: 0;
+      min-height: 100vh;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      color: var(--text);
+      background:
+        radial-gradient(1200px 800px at 20% 15%, rgba(143, 61, 255, .22), transparent 60%),
+        radial-gradient(900px 700px at 80% 25%, rgba(57, 255, 136, .10), transparent 55%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      overflow-x: hidden;
+    }
+
+    .wrap{
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 18px 14px 26px;
+      display: grid;
+      gap: 14px;
+    }
+
+    header{
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+
+    h1{
+      margin: 0;
+      font-size: clamp(18px, 2.6vw, 28px);
+      letter-spacing: .4px;
+    }
+
+    .panel{
+      background: var(--panel);
+      border: 1px solid var(--panelBorder);
+      border-radius: 16px;
+      padding: 12px;
+      box-shadow: 0 14px 40px rgba(0,0,0,.35);
+      backdrop-filter: blur(8px);
+    }
+
+    .controls{
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0,1fr));
+      gap: 10px;
+      align-items: end;
+    }
+
+    .field label{
+      display: block;
+      font-size: 12px;
+      opacity: .75;
+      margin: 0 0 6px;
+    }
+    .field input{
+      width: 100%;
+      padding: 10px 10px;
+      border-radius: 12px;
+      border: 1px solid rgba(214, 208, 255, .18);
+      background: rgba(7, 6, 18, .55);
+      color: var(--text);
+      outline: none;
+    }
+
+    .btns{
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      grid-column: span 2;
+    }
+
+    button{
+      cursor: pointer;
+      border: 0;
+      border-radius: 12px;
+      padding: 10px 12px;
+      font-weight: 650;
+      color: var(--text);
+      background: linear-gradient(180deg, rgba(143, 61, 255, .85), rgba(90, 30, 200, .85));
+      box-shadow: 0 10px 28px rgba(143, 61, 255, .18);
+      transition: transform .08s ease, filter .08s ease;
+      white-space: nowrap;
+    }
+    button.secondary{
+      background: rgba(214, 208, 255, .12);
+      border: 1px solid rgba(214, 208, 255, .18);
+      box-shadow: none;
+    }
+    button.danger{
+      background: rgba(255, 70, 120, .16);
+      border: 1px solid rgba(255, 70, 120, .22);
+      box-shadow: none;
+    }
+    button:active{ transform: translateY(1px); filter: brightness(.97); }
+    button[disabled]{ opacity: .55; cursor: not-allowed; }
+
+    .stage{
+      position: relative;
+      width: var(--maze-w);
+      height: var(--maze-h);
+      margin: 0 auto;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(214, 208, 255, .14);
+      box-shadow: 0 22px 70px rgba(0,0,0,.55);
+      background:
+        radial-gradient(900px 500px at 50% 20%, rgba(143, 61, 255, .18), transparent 60%),
+        linear-gradient(180deg, rgba(9, 8, 18, 1), rgba(12, 8, 24, 1));
+    }
+
+    .stars{
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: .55;
+      mix-blend-mode: screen;
+      background-image:
+        radial-gradient(2px 2px at 15% 25%, rgba(255,255,255,.35), transparent 55%),
+        radial-gradient(1.5px 1.5px at 35% 55%, rgba(255,255,255,.22), transparent 55%),
+        radial-gradient(1.5px 1.5px at 70% 35%, rgba(255,255,255,.25), transparent 55%),
+        radial-gradient(2px 2px at 85% 65%, rgba(255,255,255,.28), transparent 55%),
+        radial-gradient(1.5px 1.5px at 55% 15%, rgba(255,255,255,.22), transparent 55%),
+        radial-gradient(1.5px 1.5px at 25% 80%, rgba(255,255,255,.22), transparent 55%);
+      z-index: 0;
+    }
+
+    svg{
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    .wall{
+      stroke: var(--wall);
+      stroke-width: 1.5;
+      stroke-linecap: round;
+      opacity: 1;
+    }
+
+    .solution{
+      fill: none;
+      stroke: var(--path);
+      stroke-width: 2.0;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      opacity: 0;
+      will-change: stroke-dashoffset;
+    }
+
+    #witchOverlay{
+      position: absolute;
+      left: 0; top: 0;
+      width: 0px; height: 0px;
+      transform: translate(-9999px, -9999px);
+      transform-origin: center center;
+      pointer-events: none;
+      user-select: none;
+      z-index: 3;
+      filter: drop-shadow(0 0 2px rgba(230,225,255,.85));
+      will-change: transform;
+    }
+
+    .winOverlay{
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(0,0,0,.72);
+      z-index: 9999;
+      padding: 20px;
+    }
+    .winOverlay.show{ display: flex; }
+
+    .winCard{
+      width: min(980px, 94vw);
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(214, 208, 255, .16);
+      background: rgba(12, 8, 24, .92);
+      box-shadow: 0 24px 90px rgba(0,0,0,.6);
+      position: relative;
+    }
+
+    .winClose{
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      border: 1px solid rgba(214, 208, 255, .18);
+      background: rgba(0,0,0,.35);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 40px;
+      text-align: center;
+      z-index: 2;
+    }
+
+    .winImg{
+      display: block;
+      width: 100%;
+      height: auto;
+      max-height: 70vh;
+      object-fit: cover;
+    }
+
+    .winText{
+      padding: 14px 16px 18px;
+      font-weight: 900;
+      letter-spacing: 1.2px;
+      text-align: center;
+      font-size: clamp(18px, 2.4vw, 34px);
+      color: #efeaff;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 860px){
+      .controls{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+      .btns{ grid-column: span 2; justify-content: stretch; }
+      button{ width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Labirint</h1>
+    </header>
+
+    <div class="panel">
+      <div class="controls">
+        <div class="field">
+          <label for="cols">Širina (stolpci)</label>
+          <input id="cols" type="number" min="5" max="120" value="20" />
+        </div>
+        <div class="field">
+          <label for="rows">Višina (vrstice)</label>
+          <input id="rows" type="number" min="5" max="120" value="20" />
+        </div>
+        <div class="field">
+          <label for="mazeW">Širina (px)</label>
+          <input id="mazeW" type="number" min="240" max="1800" value="600" />
+        </div>
+        <div class="field">
+          <label for="mazeH">Višina (px)</label>
+          <input id="mazeH" type="number" min="240" max="1800" value="600" />
+        </div>
+
+        <div class="btns">
+          <button id="regen">Regeneriraj</button>
+          <button class="secondary" id="toggleSolve">Beton: Pokaži</button>
+          <button class="danger" id="stopSolve" disabled>Ustavi</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage" id="stage" aria-label="Labirint">
+      <div class="stars"></div>
+      <img id="witchOverlay" alt="" src="slike/carovnica.png" />
+      <svg id="svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" role="img"></svg>
+    </div>
+  </div>
+
+  <div class="winOverlay" id="winOverlay" role="dialog" aria-modal="true">
+    <div class="winCard">
+      <div class="winClose" id="winClose" aria-label="Zapri">✕</div>
+      <img class="winImg" id="evilImg" src="slike/evil.jpg" alt="" />
+      <div class="winText">ČAROVNICA JE POBEGNILA</div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const svg = document.getElementById("svg");
+  const stageEl = document.getElementById("stage");
+  const witchImgEl = document.getElementById("witchOverlay");
+  const evilImgEl = document.getElementById("evilImg");
+
+  const colsEl = document.getElementById("cols");
+  const rowsEl = document.getElementById("rows");
+  const mazeWEl = document.getElementById("mazeW");
+  const mazeHEl = document.getElementById("mazeH");
+
+  const regenBtn = document.getElementById("regen");
+  const toggleBtn = document.getElementById("toggleSolve");
+  const stopBtn = document.getElementById("stopSolve");
+
+  const winOverlay = document.getElementById("winOverlay");
+  const winClose = document.getElementById("winClose");
+
+  // Dynamic duration: daljša pot => daljši čas (smooth)
+  const REF_LEN = 650;
+  const REF_DURATION_MS = 10000;
+  const MIN_MS = 6000;
+  const MAX_MS = 45000;
+
+  let grid = [];
+  let cols = 20, rows = 20;
+  let cellW = 0, cellH = 0;
+
+  let cached = { ready:false, totalLen:0, samples:[] };
+
+  let anim = {
+    raf: null,
+    running: false,
+    paused: false,
+    startTime: 0,
+    elapsedBeforePause: 0,
+    duration: REF_DURATION_MS
+  };
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const idx = (x,y) => y * cols + x;
+
+  function showWin(){ winOverlay.classList.add("show"); }
+  function hideWin(){ winOverlay.classList.remove("show"); }
+
+  winClose.addEventListener("click", hideWin);
+  winOverlay.addEventListener("click", (e) => { if (e.target === winOverlay) hideWin(); });
+
+  // Robust image fallback (če je kdo premaknil slike iz mape "slike")
+  function setImgWithFallback(imgEl, primary, fallback){
+    imgEl.onerror = null;
+    imgEl.src = primary;
+    imgEl.addEventListener("error", () => {
+      if (imgEl.src.endsWith(fallback)) return;
+      imgEl.src = fallback;
+    }, { once: true });
+  }
+  setImgWithFallback(witchImgEl, "slike/carovnica.png", "carovnica.png");
+  setImgWithFallback(evilImgEl, "slike/evil.jpg", "evil.jpg");
+
+  function makeGrid() {
+    grid = new Array(cols * rows).fill(null).map(() => ({
+      v: false,
+      w: [true,true,true,true], // top,right,bottom,left
+    }));
+  }
+
+  function neighbors(x,y){
+    const out = [];
+    if (y > 0) out.push([x, y-1, 0, 2]);
+    if (x < cols-1) out.push([x+1, y, 1, 3]);
+    if (y < rows-1) out.push([x, y+1, 2, 0]);
+    if (x > 0) out.push([x-1, y, 3, 1]);
+    return out;
+  }
+
+  function carveMaze() {
+    const stack = [];
+    grid[idx(0,0)].v = true;
+    stack.push([0,0]);
+
+    while (stack.length) {
+      const [cx, cy] = stack[stack.length - 1];
+      const c = grid[idx(cx, cy)];
+
+      const nbs = neighbors(cx, cy).filter(([nx, ny]) => !grid[idx(nx, ny)].v);
+      if (!nbs.length) { stack.pop(); continue; }
+
+      const [nx, ny, dir, opp] = nbs[(Math.random() * nbs.length) | 0];
+      const n = grid[idx(nx, ny)];
+
+      c.w[dir] = false;
+      n.w[opp] = false;
+
+      n.v = true;
+      stack.push([nx, ny]);
+    }
+
+    // odprt vhod/izhod
+    grid[idx(0,0)].w[3] = false; // vhod levo
+    grid[idx(cols-1, rows-1)].w[1] = false; // izhod desno
+  }
+
+  function solveMaze() {
+    const q = [[0,0]];
+    const prev = new Map();
+    prev.set("0,0", null);
+    const goalKey = `${cols-1},${rows-1}`;
+
+    while (q.length) {
+      const [x,y] = q.shift();
+      const c = grid[idx(x,y)];
+      const key = `${x},${y}`;
+      if (key === goalKey) break;
+
+      if (!c.w[0] && y > 0) {
+        const nk = `${x},${y-1}`;
+        if (!prev.has(nk)) { prev.set(nk, [x,y]); q.push([x,y-1]); }
+      }
+      if (!c.w[1] && x < cols-1) {
+        const nk = `${x+1},${y}`;
+        if (!prev.has(nk)) { prev.set(nk, [x,y]); q.push([x+1,y]); }
+      }
+      if (!c.w[2] && y < rows-1) {
+        const nk = `${x},${y+1}`;
+        if (!prev.has(nk)) { prev.set(nk, [x,y]); q.push([x,y+1]); }
+      }
+      if (!c.w[3] && x > 0) {
+        const nk = `${x-1},${y}`;
+        if (!prev.has(nk)) { prev.set(nk, [x,y]); q.push([x-1,y]); }
+      }
+    }
+
+    const path = [];
+    let cur = [cols-1, rows-1];
+    while (cur) {
+      path.push(cur);
+      cur = prev.get(`${cur[0]},${cur[1]}`);
+    }
+    path.reverse();
+    return path;
+  }
+
+  function svgClear() { while (svg.firstChild) svg.removeChild(svg.firstChild); }
+
+  function centerPoint(x,y){
+    return [x * cellW + cellW/2, y * cellH + cellH/2];
+  }
+
+  function addLine(parent, x1,y1,x2,y2){
+    const ln = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    ln.setAttribute("x1", x1); ln.setAttribute("y1", y1);
+    ln.setAttribute("x2", x2); ln.setAttribute("y2", y2);
+    ln.setAttribute("class", "wall");
+    parent.appendChild(ln);
+  }
+
+  function pointsToPathD(pts){
+    if (!pts.length) return "";
+    let d = `M ${pts[0][0]} ${pts[0][1]}`;
+    for (let i=1; i<pts.length; i++){
+      d += ` L ${pts[i][0]} ${pts[i][1]}`;
+    }
+    return d;
+  }
+
+  function svgPointToStagePx(xSvg, ySvg){
+    const rect = stageEl.getBoundingClientRect();
+    return [(xSvg / 100) * rect.width, (ySvg / 100) * rect.height];
+  }
+
+  function setWitchPixelSize(){
+    const rect = stageEl.getBoundingClientRect();
+    const cellPxW = rect.width / cols;
+    const cellPxH = rect.height / rows;
+    const base = Math.min(cellPxW, cellPxH);
+
+    const size = base * 0.85;
+    witchImgEl.style.width = `${size}px`;
+    witchImgEl.style.height = `${size}px`;
+    witchImgEl.style.display = "block";
+  }
+
+  function setWitchTransformSvg(xSvg, ySvg, angRad){
+    const [x, y] = svgPointToStagePx(xSvg, ySvg);
+    const ang = angRad * 180 / Math.PI;
+
+    const w = parseFloat(witchImgEl.style.width) || 0;
+    const h = parseFloat(witchImgEl.style.height) || 0;
+
+    witchImgEl.style.transform = `translate(${x - w/2}px, ${y - h/2}px) rotate(${ang}deg)`;
+  }
+
+  function buildCache(solPathEl){
+    cached.ready = false;
+    cached.samples = [];
+
+    const totalLen = solPathEl.getTotalLength();
+    cached.totalLen = totalLen;
+
+    const N = clamp(Math.floor(totalLen * 5), 700, 3200);
+
+    for (let i=0; i<=N; i++){
+      const dist = (totalLen * i) / N;
+      const p = solPathEl.getPointAtLength(dist);
+      const p2 = solPathEl.getPointAtLength(Math.min(dist + 0.8, totalLen));
+      const ang = Math.atan2(p2.y - p.y, p2.x - p.x);
+      cached.samples.push({ t: i / N, x: p.x, y: p.y, ang });
+    }
+    cached.ready = true;
+
+    const scaled = REF_DURATION_MS * (totalLen / REF_LEN);
+    anim.duration = clamp(Math.round(scaled), MIN_MS, MAX_MS);
+  }
+
+  function svgSetup(){
+    svgClear();
+    svg.setAttribute("viewBox", "0 0 100 100");
+    cellW = 100 / cols;
+    cellH = 100 / rows;
+
+    const gWalls = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+    for (let y=0; y<rows; y++){
+      for (let x=0; x<cols; x++){
+        const c = grid[idx(x,y)];
+        const x0 = x*cellW, y0 = y*cellH;
+        const x1 = x0 + cellW, y1 = y0 + cellH;
+
+        if (c.w[0]) addLine(gWalls, x0, y0, x1, y0);
+        if (c.w[3]) addLine(gWalls, x0, y0, x0, y1);
+        if (y === rows-1 && c.w[2]) addLine(gWalls, x0, y1, x1, y1);
+        if (x === cols-1 && c.w[1]) addLine(gWalls, x1, y0, x1, y1);
+      }
+    }
+
+    svg.appendChild(gWalls);
+
+    const gridPath = solveMaze();
+    const pts = gridPath.map(([x,y]) => centerPoint(x,y));
+
+    const sol = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    sol.setAttribute("class", "solution");
+    sol.setAttribute("id", "solutionPath");
+    sol.setAttribute("d", pointsToPathD(pts));
+    svg.appendChild(sol);
+
+    buildCache(sol);
+
+    setWitchPixelSize();
+    if (cached.ready && cached.samples.length){
+      const s0 = cached.samples[0];
+      setWitchTransformSvg(s0.x, s0.y, s0.ang);
+    }
+
+    hideSolutionInstant();
+  }
+
+  function applyStageSize(pxW, pxH){
+    const maxW = Math.min(pxW, Math.floor(window.innerWidth * 0.92));
+    const maxH = Math.min(pxH, Math.floor(window.innerWidth * 0.92));
+    document.documentElement.style.setProperty("--maze-w", `${maxW}px`);
+    document.documentElement.style.setProperty("--maze-h", `${maxH}px`);
+  }
+
+  function stopAnimationLoop(){
+    if (anim.raf) cancelAnimationFrame(anim.raf);
+    anim.raf = null;
+    anim.running = false;
+    anim.paused = false;
+    anim.elapsedBeforePause = 0;
+  }
+
+  function hideSolutionInstant(){
+    const sol = document.getElementById("solutionPath");
+    if (!sol) return;
+
+    sol.style.opacity = 0;
+    sol.style.strokeDasharray = "none";
+    sol.style.strokeDashoffset = "0";
+
+    if (cached.ready && cached.samples.length){
+      const s = cached.samples[0];
+      setWitchTransformSvg(s.x, s.y, s.ang);
+    }
+  }
+
+  function setUIState(){
+    if (!anim.running && !anim.paused) {
+      toggleBtn.textContent = "Beton: Pokaži";
+      stopBtn.disabled = true;
+      return;
+    }
+    stopBtn.disabled = false;
+    toggleBtn.textContent = anim.paused ? "Beton: Nadaljuj" : "Beton: Pavza";
+  }
+
+  function renderAtProgress(t){
+    const sol = document.getElementById("solutionPath");
+    if (!sol || !cached.ready) return;
+
+    sol.style.opacity = 1;
+    const totalLen = cached.totalLen;
+
+    sol.style.strokeDasharray = `${totalLen}`;
+    sol.style.strokeDashoffset = `${totalLen * (1 - t)}`;
+
+    const i = Math.min(cached.samples.length - 1, Math.floor(t * (cached.samples.length - 1)));
+    const s = cached.samples[i];
+    setWitchTransformSvg(s.x, s.y, s.ang);
+  }
+
+  function startOrResume(){
+    hideWin();
+    if (!cached.ready) return;
+
+    if (!anim.running && !anim.paused) {
+      anim.running = true;
+      anim.paused = false;
+      anim.elapsedBeforePause = 0;
+      anim.startTime = performance.now();
+    } else if (anim.paused) {
+      anim.running = true;
+      anim.paused = false;
+      anim.startTime = performance.now();
+    }
+
+    const loop = (now) => {
+      if (!anim.running) return;
+
+      const elapsed = anim.elapsedBeforePause + (now - anim.startTime);
+      const t = clamp(elapsed / anim.duration, 0, 1);
+
+      renderAtProgress(t);
+
+      if (t >= 1) {
+        stopAnimationLoop();
+        setUIState();
+        showWin();
+        return;
+      }
+      anim.raf = requestAnimationFrame(loop);
+    };
+
+    setUIState();
+    anim.raf = requestAnimationFrame(loop);
+  }
+
+  function pause(){
+    if (!anim.running) return;
+    anim.running = false;
+    anim.paused = true;
+    if (anim.raf) cancelAnimationFrame(anim.raf);
+
+    const now = performance.now();
+    anim.elapsedBeforePause += (now - anim.startTime);
+    anim.raf = null;
+
+    setUIState();
+  }
+
+  function toggleSolve(){
+    if (!anim.running && !anim.paused) { startOrResume(); return; }
+    if (anim.running) { pause(); return; }
+    if (anim.paused) { startOrResume(); return; }
+  }
+
+  function stopAndHide(){
+    stopAnimationLoop();
+    hideSolutionInstant();
+    hideWin();
+    setUIState();
+  }
+
+  function regenerate(){
+    stopAndHide();
+
+    cols = clamp(parseInt(colsEl.value || "20", 10), 5, 120);
+    rows = clamp(parseInt(rowsEl.value || "20", 10), 5, 120);
+
+    const pxW = clamp(parseInt(mazeWEl.value || "600", 10), 240, 1800);
+    const pxH = clamp(parseInt(mazeHEl.value || "600", 10), 240, 1800);
+    applyStageSize(pxW, pxH);
+
+    makeGrid();
+    carveMaze();
+    svgSetup();
+  }
+
+  regenBtn.addEventListener("click", regenerate);
+  toggleBtn.addEventListener("click", toggleSolve);
+  stopBtn.addEventListener("click", stopAndHide);
+
+  window.addEventListener("resize", () => {
+    const pxW = clamp(parseInt(mazeWEl.value || "600", 10), 240, 1800);
+    const pxH = clamp(parseInt(mazeHEl.value || "600", 10), 240, 1800);
+    applyStageSize(pxW, pxH);
+    setWitchPixelSize();
+  });
+
+  regenerate();
+})();
+</script>
+</body>
+</html>
